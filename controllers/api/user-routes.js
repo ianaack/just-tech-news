@@ -57,21 +57,22 @@ router.get("/:id", (req, res) => {
 
 // POST /api/users
 router.post("/", (req, res) => {
-  // expects {username: "ianaack", email: "ianaack@gmail.com", password: "password1234"}
   User.create({
     username: req.body.username,
     email: req.body.email,
     password: req.body.password,
-  })
-    .then((dbUserData) => res.json(dbUserData))
-    .catch((err) => {
-      console.log(err);
-      res.status(500).json(err);
+  }).then((dbUserData) => {
+    req.session.save(() => {
+      req.session.user_id = dbUserData.id;
+      req.session.username = dbUserData.username;
+      req.session.loggedIn = true;
+
+      res.json(dbUserData);
     });
+  });
 });
 
 router.post("/login", (req, res) => {
-  // expects {email:"ianaack@gmail.com", password:"password"}
   User.findOne({
     where: {
       email: req.body.email,
@@ -83,19 +84,35 @@ router.post("/login", (req, res) => {
     }
 
     const validPassword = dbUserData.checkPassword(req.body.password);
+
     if (!validPassword) {
       res.status(400).json({ message: "Incorrect password!" });
       return;
     }
 
-    res.json({ user: dbUserData, message: "Your are now logged in!" });
+    req.session.save(() => {
+      // declare session variables
+      req.session.user_id = dbUserData.id;
+      req.session.username = dbUserData.username;
+      req.session.loggedIn = true;
+
+      res.json({ user: dbUserData, message: "You are now logged in!" });
+    });
   });
+});
+
+router.post("/logout", (req, res) => {
+  if (req.session.loggedIn) {
+    req.session.destroy(() => {
+      res.status(204).end();
+    });
+  } else {
+    res.status(404).end();
+  }
 });
 
 // PUT /api/users/:id
 router.put("/:id", (req, res) => {
-  // expects {username: "ianaack", email: "ianaack@gmail.com", password: "password1234"}
-
   // if req.body has exact key/value pairs to match the model, you can just use `req.body` instead
   User.update(req.body, {
     individualHooks: true,
